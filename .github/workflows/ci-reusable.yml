@@ -1,0 +1,38 @@
+# FINAL — destined for repo  XChain-Platform/.github  at path .github/workflows/ci-reusable.yml
+#
+# One shared CI definition every npm repo calls via `uses:`. Edit it here once and,
+# because callers pin @master, every repo picks the change up on its next run —
+# instead of editing ~9 near-identical ci.yml files. npm-only; xchain-wallet stays
+# bespoke (pnpm + corepack ordering — see README.md).
+name: ci-reusable
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node major version to run the gate on
+        type: string
+        default: "22"
+
+# github.ref here resolves to the CALLER's ref, so this de-dupes per calling repo+branch.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ inputs.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+      - name: Run test gate
+        run: npm run ci
