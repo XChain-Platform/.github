@@ -1,9 +1,9 @@
-# FINAL — destined for repo  XChain-Platform/.github  at path .github/workflows/ci-reusable.yml
+# FINAL: destined for repo  XChain-Platform/.github  at path .github/workflows/ci-reusable.yml
 #
 # One shared CI definition every npm repo calls via `uses:`. Edit it here once and,
-# because callers pin @master, every repo picks the change up on its next run —
+# because callers pin @master, every repo picks the change up on its next run,
 # instead of editing ~9 near-identical ci.yml files. npm-only; xchain-wallet stays
-# bespoke (pnpm + corepack ordering — see README.md).
+# bespoke (pnpm + corepack ordering; see README.md).
 name: ci-reusable
 
 on:
@@ -13,6 +13,14 @@ on:
         description: Node major version to run the gate on
         type: string
         default: "22"
+      run-perf:
+        description: Also run the performance suite after the gate (opt-in; off by default)
+        type: boolean
+        default: false
+      perf-script:
+        description: npm script for the perf suite; only used when run-perf is true
+        type: string
+        default: "test:perf"
 
 # github.ref here resolves to the CALLER's ref, so this de-dupes per calling repo+branch.
 concurrency:
@@ -36,3 +44,12 @@ jobs:
 
       - name: Run test gate
         run: npm run ci
+
+      # Opt-in performance suite (run-perf: true). Kept in the same job so it runs
+      # only after the gate passes and reuses the installed deps. Off by default, so
+      # every current caller is unaffected until it explicitly opts in. Repos whose
+      # perf suite needs a database wire their own service container in their ci.yml;
+      # this step suits the infra-free suites (SDK) and self-skipping ones (hub).
+      - name: Run performance suite
+        if: ${{ inputs.run-perf }}
+        run: npm run ${{ inputs.perf-script }}
