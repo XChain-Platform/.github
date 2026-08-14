@@ -97,6 +97,16 @@ jobs:
             git clone --quiet --depth 1 --branch "$SIBLINGS_REF" "$url" "$repo" 2>/dev/null \
               || git clone --quiet --depth 1 "$url" "$repo"
             echo "sibling $repo @ $(git -C "$repo" rev-parse --abbrev-ref HEAD) $(git -C "$repo" rev-parse --short HEAD)"
+            # Some guards do not just read a sibling's files, they REQUIRE its
+            # modules (the sdk loads every indexer action handler), so a source-only
+            # checkout fails on the sibling's own dependencies. Runtime deps only,
+            # since no guard runs a sibling's test suite. Never fatal: a sibling
+            # that will not install leaves its guard to report the real reason.
+            if [ -f "$repo/package.json" ]; then
+              ( cd "$repo" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund >/dev/null 2>&1 ) \
+                || ( cd "$repo" && npm install --omit=dev --ignore-scripts --no-audit --no-fund >/dev/null 2>&1 ) \
+                || echo "sibling $repo: dependency install failed, guards needing its modules will say so"
+            fi
           done
           echo "checked-out=1" >> "$GITHUB_OUTPUT"
 
