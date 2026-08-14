@@ -23,9 +23,23 @@ on:
         default: "test:perf"
 
 # github.ref here resolves to the CALLER's ref, so this de-dupes per calling repo+branch.
+#
+# PROTECTED BRANCHES ARE EXEMPT FROM CANCELLATION, and that takes both lines
+# below rather than the second one alone. A release is cut from a commit whose
+# CI already passed, so a run that never reaches a verdict leaves that commit
+# permanently unreleasable. `cancel-in-progress: false` protects a run that has
+# already STARTED, but GitHub separately keeps only one PENDING run per
+# concurrency group, so a newer push still evicts a queued one no matter what
+# that flag says. Grouping per commit on master and develop removes the
+# contention instead of arbitrating it: two commits are never in the same group,
+# so neither can evict the other.
+#
+# Everywhere else keeps per-ref grouping and cancels freely, which is what you
+# want on a pull request or a feature branch: only the newest push matters and
+# runner minutes are the only cost.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop') && github.sha || 'ref' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' && github.ref != 'refs/heads/develop' }}
 
 jobs:
   test:
