@@ -6,6 +6,10 @@
 # bespoke (pnpm + corepack ordering; see README.md).
 name: ci-reusable
 
+# Least privilege for the default GITHUB_TOKEN: every job here only reads the repo.
+permissions:
+  contents: read
+
 on:
   workflow_call:
     inputs:
