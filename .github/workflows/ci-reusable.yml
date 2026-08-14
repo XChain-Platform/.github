@@ -25,6 +25,12 @@ on:
         description: npm script for the perf suite; only used when run-perf is true
         type: string
         default: "test:perf"
+      siblings-ref:
+        description: >-
+          Ref to check the siblings out at. Empty (default) tracks the caller:
+          master on a master run, develop everywhere else.
+        type: string
+        default: ""
 
 # github.ref here resolves to the CALLER's ref, so this de-dupes per calling repo+branch.
 #
@@ -51,6 +57,49 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # A suite that reads a path outside its own repo (a test vector in
+      # xchain-documentation, the xchain-vm source the indexer vendors, a consensus
+      # twin in xchain-indexer) passes in a developer or venue checkout, where the
+      # siblings are right there, and on a single-repo runner either FAILS or
+      # SILENTLY SKIPS. Which of the two you get is luck, and the silent half is the
+      # dangerous one: xchain-contracts once skipped 235 of 287 tests and reported
+      # success, and xchain-sync measured 8 cross-repo guards quietly not running.
+      #
+      # The roster is the repo's own `.ci-siblings`, the same declaration the e2e
+      # venue reads, so CI and the venue ship the same checkout and neither list can
+      # drift from the other. No input to pass: a repo opts in by having the file.
+      #
+      # `git clone` rather than actions/checkout because checkout refuses any path
+      # outside the workspace, and a sibling must sit BESIDE the repo (../<name>) for
+      # the same relative paths to resolve on a runner and on a workstation. Cloned
+      # unauthenticated, which is what makes this work at all: every declared sibling
+      # is public, while the default GITHUB_TOKEN can only read the caller. A private
+      # sibling would need a deploy key in the caller's own ci.yml instead.
+      - name: Check out declared sibling repositories
+        id: siblings
+        env:
+          SIBLINGS_REF: ${{ inputs.siblings-ref != '' && inputs.siblings-ref || (github.ref == 'refs/heads/master' && 'master' || 'develop') }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          if [ ! -f .ci-siblings ]; then
+            echo "no .ci-siblings in this repo; single-repo layout"
+            exit 0
+          fi
+          repos=$(sed 's/#.*//' .ci-siblings | tr -d '\r' | awk 'NF')
+          cd "$GITHUB_WORKSPACE/.."
+          for repo in $repos; do
+            rm -rf "$repo"                       # a re-run starts from a clean sibling
+            url="https://github.com/$OWNER/$repo.git"
+            # Fall back to the sibling's default branch when it has no branch of
+            # this name, so one repo that has not adopted develop yet cannot fail
+            # every other repo's gate.
+            git clone --quiet --depth 1 --branch "$SIBLINGS_REF" "$url" "$repo" 2>/dev/null \
+              || git clone --quiet --depth 1 "$url" "$repo"
+            echo "sibling $repo @ $(git -C "$repo" rev-parse --abbrev-ref HEAD) $(git -C "$repo" rev-parse --short HEAD)"
+          done
+          echo "checked-out=1" >> "$GITHUB_OUTPUT"
+
       - name: Use Node.js ${{ inputs.node-version }}
         uses: actions/setup-node@v4
         with:
@@ -60,7 +109,13 @@ jobs:
       - name: Install dependencies
         run: if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
+      # Every declared sibling was just checked out, so a guard that still cannot
+      # resolve one is reporting a real breakage, not a single-repo checkout. Strict
+      # mode turns that from a silent skip into a failure. Repos with no
+      # .ci-siblings stay permissive, exactly as a bare clone should.
       - name: Run test gate
+        env:
+          XCHAIN_REQUIRE_SIBLINGS: ${{ steps.siblings.outputs.checked-out == '1' && '1' || '' }}
         run: npm run ci
 
       # Opt-in performance suite (run-perf: true). Kept in the same job so it runs
