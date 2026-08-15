@@ -35,6 +35,32 @@ instead. Security reports go through a private channel.
 - **Never commit a `.env` or any real credential.** Secrets live only in a local
   `.env`, loaded at runtime.
 
+## Contributor License Agreement
+
+Before your first contribution can be merged, you need to agree to the
+[Contributor License Agreement](https://docs.xchain.io/legal/cla).
+
+The platform is dual-licensed: free under the AGPL-3.0, and available under a
+separate commercial license for companies that need to keep their modifications
+private. Offering that second license means holding the right to relicense
+contributed code, and the agreement is what grants it. Without that grant, a
+contribution could only ever be AGPL, so this is a merge requirement rather than
+a formality.
+
+To accept, follow the link the CLA Assistant bot posts on your first pull
+request, sign in with GitHub, and click "I agree". That records your acceptance
+against your GitHub account. You only need to do it once, and it covers your
+later contributions in every XChain Platform repository. The pull request
+template also has an agreement box; tick it as well.
+
+A `Signed-off-by` trailer is not a substitute. It certifies that you had the
+right to submit the code, which is a different thing from granting the
+relicensing rights the dual-license model depends on.
+
+If you are contributing work your employer holds rights to, say so in the pull
+request instead of ticking the box. That case needs a separate agreement rather
+than the individual one above.
+
 ## Pull requests
 
 1. Run the repository's test suite and confirm it passes.
