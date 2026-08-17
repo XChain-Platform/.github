@@ -1,0 +1,107 @@
+# FINAL: destined for repo  XChain-Platform/.github  at path actions/checkout-siblings/action.yml
+#
+# The clone-the-declared-siblings step, as ONE composite action instead of a copy
+# per job. It was inlined verbatim in ten places (the shared ci-reusable workflow,
+# eight coverage ratchets and the sync e2e job) because a GitHub job cannot borrow
+# a step from another repository's workflow any other way. Copies drift, and the
+# drift is expensive: one copy lost the per-sibling dependency install for a while,
+# which does not read as a missing sibling at all but as `Cannot find module
+# 'mathjs'` thrown from inside the sibling's own source.
+#
+# WHY THE THREE THINGS BELOW ARE NOT NEGOTIABLE
+# ---------------------------------------------
+# A suite that reads a path outside its own repo passes in a developer or venue
+# checkout, where the siblings are right there, and on a single-repo runner either
+# FAILS or SILENTLY SKIPS. Which of the two you get is luck, and the silent half is
+# the dangerous one: one repo once skipped 235 of 287 tests and reported success.
+#
+#   1. The roster is the caller's own `.ci-siblings`, never a hand-kept list here.
+#      A repo opts in by having the file, which is what stops the CI roster and the
+#      e2e venue's roster from disagreeing.
+#   2. Siblings go BESIDE the checkout (`../<repo>`), the layout a workstation has,
+#      because that is what `../xchain-indexer` in a guard resolves against. Cloning
+#      one INSIDE the workspace once failed four guards on a sibling the job had all
+#      along. `git clone`, not actions/checkout, because checkout refuses any path
+#      outside the workspace.
+#   3. A sibling gets its RUNTIME dependencies installed. Node resolves a file's
+#      dependencies from its own tree, never from the caller's, so a source-only
+#      checkout dies on the sibling's deps. Runtime only, since no guard runs a
+#      sibling's test suite, and never fatal: a sibling that will not install leaves
+#      its own guard to report the real reason.
+#
+# Cloned unauthenticated, which is what makes this work at all: every declared
+# sibling is public, while the default GITHUB_TOKEN can only read the caller. A
+# private sibling would need a deploy key in the caller's own ci.yml instead.
+#
+# WHY CALLERS REFERENCE THIS @master RATHER THAN BY SHA
+# -----------------------------------------------------
+# The reusable WORKFLOW is pinned by SHA on purpose, so a shared-workflow edit
+# reaches a repo only when someone bumps its pin. This action is the opposite case
+# by construction: the whole reason it exists is that a fix to the clone/install
+# logic should land once and reach every job, and a SHA pin here would restore
+# exactly the hand-propagation across ten call sites that it replaces. The blast
+# radius is bounded because the gate itself still rides the pinned workflow; what
+# tracks master is the sibling checkout the coverage ratchets and the sync e2e job
+# use. Every call site must use the SAME ref, which the parity guard enforces, so
+# pinning later is one substitution rather than ten judgement calls.
+
+name: Check out declared sibling repositories
+description: >-
+  Clone every repository the caller declares in .ci-siblings beside the workspace
+  and install its runtime dependencies, so cross-repo guards resolve instead of
+  silently skipping.
+
+inputs:
+  ref:
+    description: >-
+      Ref to check the siblings out at. Empty (default) tracks the caller: master
+      on a master run, develop everywhere else.
+    required: false
+    default: ""
+  owner:
+    description: >-
+      GitHub owner to clone the siblings from. Empty (default) uses the caller's
+      own owner, which is what keeps a fork cloning its own siblings.
+    required: false
+    default: ""
+
+outputs:
+  checked-out:
+    description: >-
+      "1" when a .ci-siblings roster was found and cloned, empty when the caller is
+      a single-repo layout. Gate XCHAIN_REQUIRE_SIBLINGS on this: strict mode is
+      only honest once the siblings are actually there.
+    value: ${{ steps.clone.outputs.checked-out }}
+
+runs:
+  using: composite
+  steps:
+    - id: clone
+      shell: bash
+      env:
+        SIBLINGS_REF: ${{ inputs.ref != '' && inputs.ref || (github.ref == 'refs/heads/master' && 'master' || 'develop') }}
+        OWNER: ${{ inputs.owner != '' && inputs.owner || github.repository_owner }}
+      run: |
+        set -euo pipefail
+        if [ ! -f .ci-siblings ]; then
+          echo "no .ci-siblings in this repo; single-repo layout"
+          exit 0
+        fi
+        repos=$(sed 's/#.*//' .ci-siblings | tr -d '\r' | awk 'NF')
+        cd "$GITHUB_WORKSPACE/.."
+        for repo in $repos; do
+          rm -rf "$repo"                       # a re-run starts from a clean sibling
+          url="https://github.com/$OWNER/$repo.git"
+          # Fall back to the sibling's default branch when it has no branch of this
+          # name, so one repo that has not adopted develop yet cannot fail every
+          # other repo's gate.
+          git clone --quiet --depth 1 --branch "$SIBLINGS_REF" "$url" "$repo" 2>/dev/null \
+            || git clone --quiet --depth 1 "$url" "$repo"
+          echo "sibling $repo @ $(git -C "$repo" rev-parse --abbrev-ref HEAD) $(git -C "$repo" rev-parse --short HEAD)"
+          if [ -f "$repo/package.json" ]; then
+            ( cd "$repo" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund >/dev/null 2>&1 ) \
+              || ( cd "$repo" && npm install --omit=dev --ignore-scripts --no-audit --no-fund >/dev/null 2>&1 ) \
+              || echo "sibling $repo: dependency install failed, guards needing its modules will say so"
+          fi
+        done
+        echo "checked-out=1" >> "$GITHUB_OUTPUT"
