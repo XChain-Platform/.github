@@ -1,11 +1,12 @@
 # XChain Platform
 
-[XChain](https://xchain.io/) is an open token protocol that runs directly on
-Bitcoin, Litecoin, and Dogecoin. It encodes a compact set of ACTIONs into
-ordinary on-chain transactions, then indexes them into a deterministic,
-replayable ledger: tokens, transfers, a built-in DEX, dispensers, smart
-contracts, cross-chain calls, and more, secured by the base chains themselves
-rather than a new one.
+[XChain](https://xchain.io/) is an open token protocol for any blockchain,
+live today on Bitcoin, Litecoin, and Dogecoin, with more chains coming. It
+encodes a compact set of ACTIONs into ordinary on-chain transactions, then
+indexes them into a deterministic, replayable ledger: tokens, transfers, a
+built-in DEX, dispensers, smart contracts, cross-chain calls, and more, secured
+by the host chains themselves rather than a new one. Adding a UTXO chain is a
+configuration change, not a fork; account-based chains are on the roadmap.
 
 - **Website:** [XChain Platform](https://xchain.io/)
 - **Documentation:** [XChain Platform documentation](https://docs.xchain.io/)
