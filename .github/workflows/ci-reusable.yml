@@ -123,9 +123,18 @@ jobs:
       # resolve one is reporting a real breakage, not a single-repo checkout. Strict
       # mode turns that from a silent skip into a failure. Repos with no
       # .ci-siblings stay permissive, exactly as a bare clone should.
+      # GITHUB_TOKEN is the run's own automatic token, not a configured secret, so
+      # every caller gets it with no wiring. Suites that read the GitHub API (node's
+      # release-signature verification resolves signed digest files for a tag) call
+      # it unauthenticated without this, and unauthenticated quota is per RUNNER IP
+      # on a shared pool. That fails as a 403 on somebody else's traffic, on a
+      # required check, with a message about signed releases rather than about rate
+      # limits -- so it reads as a release-integrity defect and gets re-run rather
+      # than fixed. Read-only contents scope is all the verification needs.
       - name: Run test gate
         env:
           XCHAIN_REQUIRE_SIBLINGS: ${{ steps.siblings.outputs.checked-out == '1' && '1' || '' }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: npm run ci
 
       # Opt-in performance suite (run-perf: true). Kept in the same job so it runs
