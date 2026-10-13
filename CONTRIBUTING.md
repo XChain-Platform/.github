@@ -28,8 +28,10 @@ instead. Security reports go through a private channel.
   not what the code already says.
 - **Never use the em-dash character** in code, comments, or docs. Rewrite the
   sentence instead.
-- **Branch off the default branch** (`master` for most repos, `main` for some)
-  and keep history linear (rebase, don't merge).
+- **Fork, branch off `develop`, and open your pull request against `develop`.**
+  Keep history linear (rebase, don't merge). `master` is what production runs
+  and only receives release merges from `develop`; a pull request into `master`
+  from a fork fails the `base-branch guard` check and cannot be merged.
 - **No `Co-Authored-By` trailers.** This is a project policy.
 - **Never `--no-verify`.** If a hook fails, fix the cause; don't bypass it.
 - **Never commit a `.env` or any real credential.** Secrets live only in a local
@@ -66,7 +68,8 @@ than the individual one above.
 1. Run the repository's test suite and confirm it passes.
 2. Update that repository's `CHANGELOG.md` where one exists.
 3. Make sure `git status` is clean apart from intended changes.
-4. Open the PR with a clear title and a description of what changed and why.
+4. Open the PR against `develop` with a clear title and a description of what
+   changed and why.
 
 For non-security bugs, open an issue on the relevant repository. For security
 bugs, see `SECURITY.md`.

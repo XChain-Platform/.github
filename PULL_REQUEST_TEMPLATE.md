@@ -8,6 +8,7 @@
 
 ## Before merging
 
+- [ ] This pull request targets `develop`, not `master`.
 - [ ] The repository's test suite passes.
 - [ ] `CHANGELOG.md` is updated, where the repository has one.
 - [ ] No em-dash characters, and no `Co-Authored-By` trailer.
